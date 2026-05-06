@@ -1,0 +1,442 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MR お弁当マップ</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Hiragino Sans', 'Yu Gothic', sans-serif; background: #f5f5f0; color: #1a1a1a; min-height: 100vh; }
+
+    #lock-screen { position: fixed; inset: 0; background: #f5f5f0; display: flex; align-items: center; justify-content: center; z-index: 999; }
+    .lock-card { background: #fff; border: 1px solid #e8e8e8; border-radius: 16px; padding: 2rem; width: 320px; text-align: center; }
+    .lock-icon { font-size: 32px; margin-bottom: 1rem; }
+    .lock-title { font-size: 18px; font-weight: 600; margin-bottom: 4px; }
+    .lock-sub { font-size: 13px; color: #888; margin-bottom: 1.25rem; }
+    .lock-input { width: 100%; padding: 10px 14px; border: 1px solid #ddd; border-radius: 8px; font-size: 15px; font-family: inherit; text-align: center; letter-spacing: 2px; margin-bottom: 10px; transition: border-color 0.15s; }
+    .lock-input:focus { outline: none; border-color: #888; }
+    .lock-input.error { border-color: #d9534f; animation: shake 0.3s; }
+    .lock-btn { width: 100%; padding: 10px; background: #1a1a1a; color: #fff; border: none; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; }
+    .lock-btn:hover { opacity: 0.85; }
+    .lock-error { font-size: 12px; color: #d9534f; margin-top: 8px; min-height: 16px; }
+    @keyframes shake { 0%,100%{transform:translateX(0)} 25%{transform:translateX(-6px)} 75%{transform:translateX(6px)} }
+
+    #app { display: none; }
+    .container { max-width: 800px; margin: 0 auto; padding: 1.5rem 1rem; }
+    h1 { font-size: 20px; font-weight: 600; margin-bottom: 1.25rem; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    h1 span.sub { font-size: 12px; font-weight: 400; color: #888; }
+    .tabs { display: flex; gap: 8px; margin-bottom: 1.5rem; }
+    .tab { flex: 1; padding: 10px; border: 1px solid #ddd; border-radius: 8px; background: #fff; cursor: pointer; font-size: 14px; color: #666; text-align: center; transition: all 0.15s; }
+    .tab.active { background: #f0f0eb; color: #1a1a1a; font-weight: 600; border-color: #bbb; }
+    .section { display: none; }
+    .section.active { display: block; }
+
+    .form-card { background: #fff; border: 1px solid #e8e8e8; border-radius: 12px; padding: 1.25rem; }
+    .form-row { margin-bottom: 1rem; }
+    .form-row label { display: block; font-size: 13px; color: #666; margin-bottom: 5px; }
+    .form-row input, .form-row select, .form-row textarea { width: 100%; padding: 9px 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px; font-family: inherit; background: #fff; color: #1a1a1a; transition: border-color 0.15s; }
+    .form-row input:focus, .form-row select:focus, .form-row textarea:focus { outline: none; border-color: #888; }
+    .form-row textarea { height: 72px; resize: vertical; }
+    .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .img-hint { font-size: 12px; color: #aaa; margin-top: 4px; }
+    .img-hint a { color: #4a86c8; text-decoration: none; }
+    .btn-submit { width: 100%; padding: 11px; background: #1a1a1a; border: none; border-radius: 8px; cursor: pointer; font-size: 14px; font-weight: 600; color: #fff; margin-top: 0.5rem; transition: opacity 0.15s; }
+    .btn-submit:hover { opacity: 0.85; }
+    .btn-submit:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    .filter-bar { display: flex; gap: 8px; margin-bottom: 1rem; flex-wrap: wrap; align-items: center; }
+    .filter-bar select { flex: 1; min-width: 120px; padding: 8px 10px; border: 1px solid #ddd; border-radius: 8px; font-size: 13px; font-family: inherit; background: #fff; color: #1a1a1a; }
+    .btn-reload { padding: 8px 14px; border: 1px solid #ddd; border-radius: 8px; background: #fff; cursor: pointer; font-size: 13px; color: #666; white-space: nowrap; }
+    .btn-reload:hover { background: #f5f5f0; }
+    .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; }
+    .card { background: #fff; border: 1px solid #e8e8e8; border-radius: 12px; overflow: hidden; }
+    .card-img { width: 100%; height: 150px; background: #f0f0eb; display: flex; align-items: center; justify-content: center; color: #bbb; font-size: 13px; overflow: hidden; }
+    .card-img img { width: 100%; height: 100%; object-fit: cover; }
+    .card-body { padding: 12px; }
+    .card-name { font-weight: 600; font-size: 15px; margin-bottom: 3px; }
+    .card-addr { font-size: 12px; color: #888; margin-bottom: 8px; }
+    .card-tags { display: flex; gap: 5px; flex-wrap: wrap; margin-bottom: 10px; }
+    .tag { font-size: 11px; padding: 2px 8px; border-radius: 99px; border: 1px solid #e0e0e0; background: #f5f5f0; color: #555; }
+    .tag.genre { background: #e8f0fb; color: #1a56a0; border-color: #b8d0f0; }
+    .tag.price { background: #e8f5e8; color: #1a6a1a; border-color: #b0d8b0; }
+    .card-memo { font-size: 12px; color: #666; margin-bottom: 10px; line-height: 1.5; }
+    .card-actions { display: flex; gap: 6px; }
+    .btn-card { flex: 1; padding: 7px 4px; border: 1px solid #ddd; border-radius: 8px; background: #fff; cursor: pointer; font-size: 12px; color: #1a1a1a; display: flex; align-items: center; justify-content: center; gap: 4px; }
+    .btn-card:hover { background: #f5f5f0; }
+    .btn-card.del:hover { color: #c0392b; border-color: #f0b0b0; }
+    .btn-card.edit:hover { color: #1a56a0; border-color: #b8d0f0; }
+    .empty { text-align: center; padding: 3rem; color: #bbb; font-size: 14px; }
+    .status { font-size: 12px; color: #aaa; margin-bottom: 10px; display: flex; align-items: center; gap: 6px; }
+    .dot { width: 7px; height: 7px; border-radius: 50%; display: inline-block; }
+    .dot.green { background: #5cb85c; } .dot.yellow { background: #f0ad4e; } .dot.red { background: #d9534f; }
+
+    .modal-bg { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.45); z-index: 900; align-items: center; justify-content: center; padding: 1rem; }
+    .modal-bg.open { display: flex; }
+    .modal { background: #fff; border-radius: 16px; width: 100%; max-width: 500px; max-height: 90vh; overflow-y: auto; padding: 1.5rem; }
+    .modal-title { font-size: 16px; font-weight: 600; margin-bottom: 1.25rem; display: flex; align-items: center; justify-content: space-between; }
+    .modal-close { background: none; border: none; font-size: 20px; cursor: pointer; color: #aaa; line-height: 1; }
+    .modal-close:hover { color: #1a1a1a; }
+    .modal-btns { display: flex; gap: 8px; margin-top: 1rem; }
+    .btn-cancel { flex: 1; padding: 10px; border: 1px solid #ddd; border-radius: 8px; background: #fff; cursor: pointer; font-size: 14px; color: #666; }
+    .btn-update { flex: 2; padding: 10px; background: #1a1a1a; border: none; border-radius: 8px; cursor: pointer; font-size: 14px; font-weight: 600; color: #fff; }
+    .btn-update:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    .map-note { background: #fff; border: 1px solid #e8e8e8; border-radius: 12px; padding: 12px 14px; margin-bottom: 12px; font-size: 13px; color: #666; display: flex; align-items: flex-start; gap: 8px; line-height: 1.6; }
+    .map-frame-wrap { background: #fff; border: 1px solid #e8e8e8; border-radius: 12px; overflow: hidden; }
+    .map-frame-wrap iframe { width: 100%; height: 520px; border: none; display: block; }
+    .btn-open-map { display: block; width: 100%; margin-top: 10px; padding: 10px; border: 1px solid #ddd; border-radius: 8px; background: #fff; cursor: pointer; font-size: 13px; color: #1a1a1a; text-align: center; text-decoration: none; }
+    .btn-open-map:hover { background: #f5f5f0; }
+
+    .toast { position: fixed; bottom: 1.5rem; left: 50%; transform: translateX(-50%); background: #1a1a1a; color: #fff; padding: 10px 20px; border-radius: 8px; font-size: 14px; display: none; z-index: 9999; white-space: nowrap; }
+    .spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid #555; border-top-color: #fff; border-radius: 50%; animation: spin 0.7s linear infinite; vertical-align: -2px; margin-right: 6px; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    @media (max-width: 500px) {
+      .form-grid { grid-template-columns: 1fr; }
+      .cards { grid-template-columns: 1fr; }
+      .lock-card { width: 90%; }
+      .map-frame-wrap iframe { height: 380px; }
+      .tabs { gap: 5px; }
+      .tab { font-size: 12px; padding: 8px 4px; }
+    }
+  </style>
+</head>
+<body>
+
+<div id="lock-screen">
+  <div class="lock-card">
+    <div class="lock-icon">🔒</div>
+    <div class="lock-title">MR お弁当マップ</div>
+    <div class="lock-sub">パスワードを入力してください</div>
+    <input type="password" class="lock-input" id="pw-input" placeholder="••••••" onkeydown="if(event.key==='Enter')checkPassword()">
+    <button class="lock-btn" onclick="checkPassword()">ログイン</button>
+    <div class="lock-error" id="pw-error"></div>
+  </div>
+</div>
+
+<div class="modal-bg" id="edit-modal">
+  <div class="modal">
+    <div class="modal-title">
+      ✏️ 店舗情報を編集
+      <button class="modal-close" onclick="closeModal()">×</button>
+    </div>
+    <div class="form-row"><label>店舗名 <span style="color:#c0392b;">*</span></label><input type="text" id="e-name"></div>
+    <div class="form-row"><label>住所 <span style="color:#c0392b;">*</span></label><input type="text" id="e-addr"></div>
+    <div class="form-grid">
+      <div class="form-row">
+        <label>ジャンル</label>
+        <select id="e-genre">
+          <option value="">選択</option>
+          <option value="和食">和食</option>
+          <option value="寿司">寿司</option>
+          <option value="洋食">洋食</option>
+          <option value="中華">中華</option>
+          <option value="イタリアン">イタリアン</option>
+          <option value="フレンチ">フレンチ</option>
+          <option value="その他">その他</option>
+        </select>
+      </div>
+      <div class="form-row">
+        <label>価格帯</label>
+        <select id="e-price">
+          <option value="">選択</option>
+          <option value="¥1,620">¥1,620</option>
+          <option value="¥2,160">¥2,160</option>
+          <option value="¥3,000">¥3,000</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-row">
+      <label>評価</label>
+      <select id="e-rating">
+        <option value="">選択</option>
+        <option value="★★★★★">★★★★★</option>
+        <option value="★★★★">★★★★</option>
+        <option value="★★★">★★★</option>
+        <option value="★★">★★</option>
+      </select>
+    </div>
+    <div class="form-row">
+      <label>写真URL <span style="font-weight:400;color:#aaa;">（Postimagesの Direct link）</span></label>
+      <input type="text" id="e-img" placeholder="https://i.postimg.cc/xxxxxx/photo.jpg">
+      <p class="img-hint">↗ <a href="https://postimages.org" target="_blank">Postimagesでアップロード →</a>「Direct link」のURLを使ってください</p>
+    </div>
+    <div class="form-row"><label>メモ</label><textarea id="e-memo"></textarea></div>
+    <div class="modal-btns">
+      <button class="btn-cancel" onclick="closeModal()">キャンセル</button>
+      <button class="btn-update" id="btn-update" onclick="updateEntry()">更新する</button>
+    </div>
+  </div>
+</div>
+
+<div id="app">
+  <div class="container">
+    <h1>📍 MR お弁当マップ <span class="sub">スプレッドシート連携版</span></h1>
+    <div class="tabs">
+      <div class="tab active" onclick="switchTab('input')">＋ 入力</div>
+      <div class="tab" onclick="switchTab('list')">一覧</div>
+      <div class="tab" onclick="switchTab('map')">🗺 マップ</div>
+    </div>
+
+    <div id="tab-input" class="section active">
+      <div class="form-card">
+        <div class="form-row"><label>店舗名 <span style="color:#c0392b;">*</span></label><input type="text" id="f-name" placeholder="例：割烹 山田"></div>
+        <div class="form-row"><label>住所 <span style="color:#c0392b;">*</span></label><input type="text" id="f-addr" placeholder="例：大阪府大阪市北区梅田1-1-1"></div>
+        <div class="form-grid">
+          <div class="form-row">
+            <label>ジャンル</label>
+            <select id="f-genre">
+              <option value="">選択</option>
+              <option value="和食">和食</option>
+              <option value="寿司">寿司</option>
+              <option value="洋食">洋食</option>
+              <option value="中華">中華</option>
+              <option value="イタリアン">イタリアン</option>
+              <option value="フレンチ">フレンチ</option>
+              <option value="その他">その他</option>
+            </select>
+          </div>
+          <div class="form-row">
+            <label>価格帯</label>
+            <select id="f-price">
+              <option value="">選択</option>
+              <option value="¥1,620">¥1,620</option>
+              <option value="¥2,160">¥2,160</option>
+              <option value="¥3,000">¥3,000</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-row">
+          <label>評価</label>
+          <select id="f-rating">
+            <option value="">選択</option>
+            <option value="★★★★★">★★★★★</option>
+            <option value="★★★★">★★★★</option>
+            <option value="★★★">★★★</option>
+            <option value="★★">★★</option>
+          </select>
+        </div>
+        <div class="form-row">
+          <label>写真URL <span style="font-weight:400;color:#aaa;">（Postimagesの Direct link）</span></label>
+          <input type="text" id="f-img" placeholder="https://i.postimg.cc/xxxxxx/photo.jpg">
+          <p class="img-hint">↗ <a href="https://postimages.org" target="_blank">Postimagesでアップロード →</a>「Direct link」のURLを使ってください</p>
+        </div>
+        <div class="form-row"><label>メモ</label><textarea id="f-memo" placeholder="特徴・おすすめポイントなど"></textarea></div>
+        <button class="btn-submit" id="btn-save" onclick="addEntry()">スプレッドシートに保存する</button>
+      </div>
+    </div>
+
+    <div id="tab-list" class="section">
+      <div class="status"><span class="dot yellow" id="status-dot"></span><span id="status-text">読み込み中...</span></div>
+      <div class="filter-bar">
+        <select id="fil-genre" onchange="renderCards()">
+          <option value="">全ジャンル</option>
+          <option value="和食">和食</option><option value="寿司">寿司</option><option value="洋食">洋食</option>
+          <option value="中華">中華</option><option value="イタリアン">イタリアン</option><option value="フレンチ">フレンチ</option><option value="その他">その他</option>
+        </select>
+        <select id="fil-price" onchange="renderCards()">
+          <option value="">全価格帯</option>
+          <option value="¥1,620">¥1,620</option>
+          <option value="¥2,160">¥2,160</option>
+          <option value="¥3,000">¥3,000</option>
+        </select>
+        <button class="btn-reload" onclick="loadData()">↻ 更新</button>
+      </div>
+      <div class="cards" id="card-area"><div class="empty">データを取得中...</div></div>
+    </div>
+
+    <div id="tab-map" class="section">
+      <div class="map-note">📌 新しく入力した店舗はGoogleマイマップ側で再インポートすると反映されます</div>
+      <div class="map-frame-wrap">
+        <iframe src="https://www.google.com/maps/d/embed?mid=1o-FIVyvu8ZdHDJLRBZ2QhAWu8rvs5F4&ehbc=2E312F" allowfullscreen loading="lazy"></iframe>
+      </div>
+      <a class="btn-open-map" href="https://www.google.com/maps/d/viewer?mid=1o-FIVyvu8ZdHDJLRBZ2QhAWu8rvs5F4" target="_blank">↗ Googleマイマップで大きく開く</a>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+  const PASSWORD = 'bento';
+  const GAS_URL = 'https://script.google.com/macros/s/AKfycbzwDKv8ByFD2iXWW5NthEjLZ5EGM6QmJ_fnZJ8gpoasnJhRfyMdN9qeaN6DfOwBppQf/exec';
+  let allData = [];
+  let nextId = Date.now();
+  let editingId = null;
+
+  function checkPassword() {
+    const input = document.getElementById('pw-input').value;
+    if (input === PASSWORD) {
+      sessionStorage.setItem('bento-auth', '1');
+      document.getElementById('lock-screen').style.display = 'none';
+      document.getElementById('app').style.display = 'block';
+      loadData();
+    } else {
+      const el = document.getElementById('pw-input');
+      el.classList.add('error');
+      document.getElementById('pw-error').textContent = 'パスワードが違います';
+      el.value = '';
+      setTimeout(() => el.classList.remove('error'), 400);
+    }
+  }
+
+  if (sessionStorage.getItem('bento-auth') === '1') {
+    document.getElementById('lock-screen').style.display = 'none';
+    document.getElementById('app').style.display = 'block';
+  }
+
+  async function loadData() {
+    setStatus('yellow', '読み込み中...');
+    try {
+      const res = await fetch(GAS_URL);
+      const json = await res.json();
+      allData = json.filter(d => d.id);
+      setStatus('green', 'スプレッドシートと同期済み・' + allData.length + '件');
+      renderCards();
+    } catch(e) {
+      setStatus('red', '読み込みエラー。更新ボタンをお試しください');
+      document.getElementById('card-area').innerHTML = '<div class="empty">データを取得できませんでした</div>';
+    }
+  }
+
+  async function addEntry() {
+    const name = document.getElementById('f-name').value.trim();
+    const addr = document.getElementById('f-addr').value.trim();
+    if (!name || !addr) { showToast('店舗名と住所は必須です'); return; }
+    const btn = document.getElementById('btn-save');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span>保存中...';
+    const entry = {
+      id: String(nextId++), name, addr,
+      genre: document.getElementById('f-genre').value,
+      price: document.getElementById('f-price').value,
+      rating: document.getElementById('f-rating').value,
+      img: document.getElementById('f-img').value.trim(),
+      memo: document.getElementById('f-memo').value.trim()
+    };
+    try {
+      await fetch(GAS_URL, { method: 'POST', mode: 'no-cors', headers: {'Content-Type':'application/json'}, body: JSON.stringify({action:'add', data: entry}) });
+      ['f-name','f-addr','f-genre','f-price','f-rating','f-img','f-memo'].forEach(id => {
+        const el = document.getElementById(id);
+        el.tagName === 'SELECT' ? el.selectedIndex = 0 : (el.value = '');
+      });
+      showToast('✓ 保存しました！');
+      switchTab('list');
+      setTimeout(loadData, 1500);
+    } catch(e) { showToast('保存に失敗しました'); }
+    btn.disabled = false;
+    btn.innerHTML = 'スプレッドシートに保存する';
+  }
+
+  function openEditModal(id) {
+    const d = allData.find(d => String(d.id) === String(id));
+    if (!d) return;
+    editingId = String(id);
+    document.getElementById('e-name').value = d.name || '';
+    document.getElementById('e-addr').value = d.addr || '';
+    document.getElementById('e-img').value = d.img || '';
+    document.getElementById('e-memo').value = d.memo || '';
+    document.getElementById('e-genre').value = d.genre || '';
+    document.getElementById('e-price').value = d.price || '';
+    document.getElementById('e-rating').value = d.rating || '';
+    document.getElementById('edit-modal').classList.add('open');
+  }
+
+  function closeModal() {
+    document.getElementById('edit-modal').classList.remove('open');
+    editingId = null;
+  }
+
+  async function updateEntry() {
+    const name = document.getElementById('e-name').value.trim();
+    const addr = document.getElementById('e-addr').value.trim();
+    if (!name || !addr) { showToast('店舗名と住所は必須です'); return; }
+    const btn = document.getElementById('btn-update');
+    btn.disabled = true;
+    btn.textContent = '更新中...';
+    const updated = {
+      id: editingId, name, addr,
+      genre: document.getElementById('e-genre').value,
+      price: document.getElementById('e-price').value,
+      rating: document.getElementById('e-rating').value,
+      img: document.getElementById('e-img').value.trim(),
+      memo: document.getElementById('e-memo').value.trim()
+    };
+    try {
+      await fetch(GAS_URL, { method: 'POST', mode: 'no-cors', headers: {'Content-Type':'application/json'}, body: JSON.stringify({action:'delete', id: editingId}) });
+      await new Promise(r => setTimeout(r, 500));
+      await fetch(GAS_URL, { method: 'POST', mode: 'no-cors', headers: {'Content-Type':'application/json'}, body: JSON.stringify({action:'add', data: updated}) });
+      closeModal();
+      showToast('✓ 更新しました！');
+      setTimeout(loadData, 1500);
+    } catch(e) { showToast('更新に失敗しました'); }
+    btn.disabled = false;
+    btn.textContent = '更新する';
+  }
+
+  async function deleteEntry(id) {
+    if (!confirm('この店舗を削除しますか？')) return;
+    try {
+      await fetch(GAS_URL, { method: 'POST', mode: 'no-cors', headers: {'Content-Type':'application/json'}, body: JSON.stringify({action:'delete', id: String(id)}) });
+      allData = allData.filter(d => String(d.id) !== String(id));
+      renderCards();
+      showToast('削除しました');
+      setTimeout(loadData, 1500);
+    } catch(e) { showToast('削除に失敗しました'); }
+  }
+
+  function openMap(addr) {
+    window.open('https://maps.google.com/?q=' + encodeURIComponent(addr), '_blank');
+  }
+
+  function renderCards() {
+    const fg = document.getElementById('fil-genre').value;
+    const fp = document.getElementById('fil-price').value;
+    const filtered = allData.filter(d => (!fg || d.genre === fg) && (!fp || d.price === fp));
+    const area = document.getElementById('card-area');
+    if (!filtered.length) { area.innerHTML = '<div class="empty">該当するお店がありません</div>'; return; }
+    area.innerHTML = filtered.map(d => `
+      <div class="card">
+        <div class="card-img">
+          ${d.img ? `<img src="${d.img}" alt="${d.name}" onerror="this.parentElement.innerHTML='写真なし'">` : '写真なし'}
+        </div>
+        <div class="card-body">
+          <div class="card-name">${d.name}</div>
+          <div class="card-addr">${d.addr}</div>
+          <div class="card-tags">
+            ${d.genre ? `<span class="tag genre">${d.genre}</span>` : ''}
+            ${d.price ? `<span class="tag price">${d.price}</span>` : ''}
+            ${d.rating ? `<span class="tag">${d.rating}</span>` : ''}
+          </div>
+          ${d.memo ? `<div class="card-memo">${d.memo}</div>` : ''}
+          <div class="card-actions">
+            <button class="btn-card" onclick="openMap('${d.addr.replace(/'/g,"\\'")}')">📍 マップ</button>
+            <button class="btn-card edit" onclick="openEditModal('${d.id}')">✏️ 編集</button>
+            <button class="btn-card del" onclick="deleteEntry('${d.id}')">🗑 削除</button>
+          </div>
+        </div>
+      </div>
+    `).join('');
+  }
+
+  function switchTab(t) {
+    document.querySelectorAll('.tab').forEach((el, i) => { el.classList.toggle('active', ['input','list','map'][i] === t); });
+    ['input','list','map'].forEach(name => { document.getElementById('tab-' + name).classList.toggle('active', name === t); });
+    if (t === 'list') loadData();
+  }
+
+  function setStatus(color, text) {
+    document.getElementById('status-dot').className = 'dot ' + color;
+    document.getElementById('status-text').textContent = text;
+  }
+
+  function showToast(msg) {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.style.display = 'block';
+    setTimeout(() => t.style.display = 'none', 2500);
+  }
+
+  document.getElementById('pw-input').focus();
+</script>
+</body>
+</html>
